@@ -1203,6 +1203,11 @@
         const acceptSelectedBtn = document.getElementById('cookiesAcceptSelected');
         const cookiesSelected = document.getElementById('cookiesSelected');
 
+        // Exit early if cookies consent elements don't exist
+        if (!cookiesConsent) {
+            return;
+        }
+
         const toggles = {
             analytics: document.getElementById('cookiesAnalyticsToggle'),
             marketing: document.getElementById('cookiesMarketingToggle'),
@@ -1216,94 +1221,113 @@
             cookiesConsent.style.display = 'none';
         }
 
-        // Open modal
-        preferencesBtn.addEventListener('click', function () {
-            modalOverlay.classList.add('active');
-            document.body.style.overflow = 'hidden';
-        });
-
-        // Accept all cookies
-        acceptAllBtn.addEventListener('click', function () {
-            toggles.analytics.checked = true;
-            toggles.marketing.checked = true;
-            toggles.preferences.checked = true;
-
-            localStorage.setItem('cookiesAccepted', 'all');
-            cookiesConsent.style.display = 'none';
-
-        });
-
-        // Close modal
-        closeBtn.addEventListener('click', closeModal);
-
-        // Close modal when clicking outside
-        modalOverlay.addEventListener('click', function (e) {
-            if (e.target === modalOverlay) {
-                closeModal();
+        // Close modal function
+        function closeModal() {
+            if (modalOverlay) {
+                modalOverlay.classList.remove('active');
             }
-        });
-
-        // Reject all non-essential cookies
-        rejectAllBtn.addEventListener('click', function () {
-            toggles.analytics.checked = false;
-            toggles.marketing.checked = false;
-            toggles.preferences.checked = false;
-            updateSelectedCookies();
-
-            localStorage.setItem('cookiesAccepted', 'necessary');
-            cookiesConsent.style.display = 'none';
-
-            setTimeout(function () {
-                closeModal();
-            }, 300);
-        });
-
-        // Accept selected cookies
-        acceptSelectedBtn.addEventListener('click', function () {
-            const accepted = ['necessary'];
-            if (toggles.analytics.checked) accepted.push('analytics');
-            if (toggles.marketing.checked) accepted.push('marketing');
-            if (toggles.preferences.checked) accepted.push('preferences');
-
-            localStorage.setItem('cookiesAccepted', accepted.join(','));
-            cookiesConsent.style.display = 'none';
-
-            setTimeout(function () {
-                closeModal();
-            }, 300);
-        });
+            document.body.style.overflow = 'auto';
+        }
 
         // Update selected cookies text
         function updateSelectedCookies() {
+            if (!cookiesSelected) return;
+            
             const selected = ['Necessary'];
 
-            if (toggles.analytics.checked) selected.push('Analytics');
-            if (toggles.marketing.checked) selected.push('Marketing');
-            if (toggles.preferences.checked) selected.push('Preferences');
+            if (toggles.analytics && toggles.analytics.checked) selected.push('Analytics');
+            if (toggles.marketing && toggles.marketing.checked) selected.push('Marketing');
+            if (toggles.preferences && toggles.preferences.checked) selected.push('Preferences');
 
             cookiesSelected.textContent = `Selected: ${selected.join(', ')}`;
         }
 
+        // Open modal
+        if (preferencesBtn && modalOverlay) {
+            preferencesBtn.addEventListener('click', function () {
+                modalOverlay.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            });
+        }
+
+        // Accept all cookies
+        if (acceptAllBtn) {
+            acceptAllBtn.addEventListener('click', function () {
+                if (toggles.analytics) toggles.analytics.checked = true;
+                if (toggles.marketing) toggles.marketing.checked = true;
+                if (toggles.preferences) toggles.preferences.checked = true;
+
+                localStorage.setItem('cookiesAccepted', 'all');
+                cookiesConsent.style.display = 'none';
+            });
+        }
+
+        // Close modal
+        if (closeBtn) {
+            closeBtn.addEventListener('click', closeModal);
+        }
+
+        // Close modal when clicking outside
+        if (modalOverlay) {
+            modalOverlay.addEventListener('click', function (e) {
+                if (e.target === modalOverlay) {
+                    closeModal();
+                }
+            });
+        }
+
+        // Reject all non-essential cookies
+        if (rejectAllBtn) {
+            rejectAllBtn.addEventListener('click', function () {
+                if (toggles.analytics) toggles.analytics.checked = false;
+                if (toggles.marketing) toggles.marketing.checked = false;
+                if (toggles.preferences) toggles.preferences.checked = false;
+                updateSelectedCookies();
+
+                localStorage.setItem('cookiesAccepted', 'necessary');
+                cookiesConsent.style.display = 'none';
+
+                setTimeout(function () {
+                    closeModal();
+                }, 300);
+            });
+        }
+
+        // Accept selected cookies
+        if (acceptSelectedBtn) {
+            acceptSelectedBtn.addEventListener('click', function () {
+                const accepted = ['necessary'];
+                if (toggles.analytics && toggles.analytics.checked) accepted.push('analytics');
+                if (toggles.marketing && toggles.marketing.checked) accepted.push('marketing');
+                if (toggles.preferences && toggles.preferences.checked) accepted.push('preferences');
+
+                localStorage.setItem('cookiesAccepted', accepted.join(','));
+                cookiesConsent.style.display = 'none';
+
+                setTimeout(function () {
+                    closeModal();
+                }, 300);
+            });
+        }
+
         // Add event listeners to toggles
         for (const key in toggles) {
-            toggles[key].addEventListener('change', updateSelectedCookies);
+            if (toggles[key]) {
+                toggles[key].addEventListener('change', updateSelectedCookies);
+            }
         }
 
         // Initialize selected cookies text
         updateSelectedCookies();
 
-        // Close modal function
-        function closeModal() {
-            modalOverlay.classList.remove('active');
-            document.body.style.overflow = 'auto';
-        }
-
         // Close with Escape key
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && modalOverlay.classList.contains('active')) {
-                closeModal();
-            }
-        });
+        if (modalOverlay) {
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && modalOverlay.classList.contains('active')) {
+                    closeModal();
+                }
+            });
+        }
     });
 
 
@@ -1322,20 +1346,28 @@
     }
 
     // Handle Form Submission
-    document.getElementById("jobForm").addEventListener("submit", function (e) {
-        e.preventDefault(); // Prevent page reload
+    const jobForm = document.getElementById("jobForm");
+    if (jobForm) {
+        jobForm.addEventListener("submit", function (e) {
+            e.preventDefault(); // Prevent page reload
 
-        // Show success message
-        document.getElementById("successMessage").style.display = "block";
+            // Show success message
+            const successMessage = document.getElementById("successMessage");
+            if (successMessage) {
+                successMessage.style.display = "block";
+            }
 
-        // Optionally reset form
-        this.reset();
+            // Optionally reset form
+            this.reset();
 
-        // Optionally hide message after few seconds
-        setTimeout(() => {
-            document.getElementById("successMessage").style.display = "none";
-        }, 5000);
-    });
+            // Optionally hide message after few seconds
+            setTimeout(() => {
+                if (successMessage) {
+                    successMessage.style.display = "none";
+                }
+            }, 5000);
+        });
+    }
 
 
     /* ====================================

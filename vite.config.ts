@@ -10,6 +10,16 @@ export default defineConfig({
       open: true,
     }),
   ],
+  server: {
+    proxy: {
+      "/api/contact": {
+        target: "https://j5xjsa3taj.execute-api.ap-south-1.amazonaws.com",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/contact/, "/contact"),
+        secure: true,
+      },
+    },
+  },
   build: {
     rollupOptions: {
       output: {
