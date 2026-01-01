@@ -1,4 +1,3 @@
-import CallToAction from "../components/CallToAction";
 import Cookies from "../components/Cookies";
 import ContactForm from "../components/ContactForm";
 
@@ -108,7 +107,6 @@ function Contact() {
                         </div>
                         {/* End Contact Map */}
 
-                        <CallToAction />
                         <Cookies />
                     </div>
                 </div>

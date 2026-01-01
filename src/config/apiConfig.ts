@@ -27,5 +27,9 @@ export const API_CONFIG = {
     "https://j5xjsa3taj.execute-api.ap-south-1.amazonaws.com/contact",
     "/api/contact"
   ),
+  CAREER_FORM: new ContactFormEndpoint(
+    "https://j5xjsa3taj.execute-api.ap-south-1.amazonaws.com/career",
+    "/api/career"
+  ),
 };
 

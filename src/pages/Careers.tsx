@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import Counter from "../components/Counter";
 import Testimonials from "../components/Testimonials";
-import CallToAction from "../components/CallToAction";
 import Cookies from "../components/Cookies";
 function Careers() {
     return (
@@ -131,7 +130,6 @@ function Careers() {
                 {/* Other Sections */}
                 <Testimonials />
                 <Counter />
-                <CallToAction />
                 <Cookies />
             </div>
         </>

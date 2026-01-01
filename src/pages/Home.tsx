@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import AllServices from "../components/AllServices";
 import HeroSlider from "../components/HeroSlider";
-import CallToAction from "../components/CallToAction";
 import Cookies from "../components/Cookies";
 import Counter from "../components/Counter";
 import Testimonials from "../components/Testimonials";
@@ -99,10 +98,6 @@ function Home() {
                 {/*=========== fun fact Wrapper Start ==========*/}
                 <Counter />
                 {/*=========== fun fact Wrapper End ==========*/}
-
-                {/*====================  Call to action area ====================*/}
-                <CallToAction />
-                {/*====================  End of Call to action area  ====================*/}
 
                 {/*====================  Cookies area ====================*/}
                 <Cookies />

@@ -1,8 +1,14 @@
-import { useEffect, useState } from "react";
-import { useForm, type SubmitHandler } from "react-hook-form";
+import { useEffect, useState, useCallback } from "react";
+import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as Yup from "yup";
-import CallToAction from "../components/CallToAction";
+import axios from "axios";
+import PhoneInput from "react-phone-number-input";
+import { isValidPhoneNumber } from "react-phone-number-input";
+import "react-phone-number-input/style.css";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { API_CONFIG } from "../config/apiConfig";
 import Cookies from "../components/Cookies";
 
 
@@ -12,7 +18,7 @@ type FormValues = {
   phone: string;
   position: string;
   resume?: FileList;
-  cover_letter?: string;
+  cover_letter?: FileList;
 };
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -21,32 +27,58 @@ const ALLOWED_FILE_TYPES = [
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
-const MAX_COVER_LETTER_LENGTH = 500;
 
 const validationSchema = Yup.object().shape({
-  full_name: Yup.string().required("Full Name is required"),
-  email: Yup.string().email("Invalid email").required("Email is required"),
+  full_name: Yup.string()
+    .required("Full Name is required")
+    .matches(/^[A-Za-z\s]+$/, "Name can only contain letters and spaces")
+    .test(
+      "min-letters",
+      "Name must have at least 3 letters",
+      (value) => (value?.replace(/[^A-Za-z]/g, "").length ?? 0) >= 3
+    )
+    .max(50, "Name cannot exceed 50 characters")
+    .trim(),
+  email: Yup.string()
+    .required("Email is required")
+    .email("Invalid email format")
+    .max(100, "Email cannot exceed 100 characters")
+    .trim(),
   phone: Yup.string()
-    .matches(/^[0-9]{10}$/, "Phone must be 10 digits")
-    .required("Phone is required"),
-  position: Yup.string().required("Please select a position"),
+    .required("Phone number is required")
+    .test("is-valid-phone", "Please enter a valid phone number", (value) => {
+      if (!value) return false;
+      return isValidPhoneNumber(value);
+    }),
+  position: Yup.string()
+    .required("Please select a position")
+    .oneOf(
+      ["react-js-developer", "php-laravel-developer", "ui-ux-designer"],
+      "Please select a valid position"
+    ),
   resume: Yup.mixed<FileList>()
     .required("Resume is required")
     .test("fileSize", "File must be less than 2 MB", (value) => !value || value[0]?.size <= MAX_FILE_SIZE)
     .test("fileType", "Only PDF, DOC, DOCX files are allowed", (value) =>
       !value || ALLOWED_FILE_TYPES.includes(value[0]?.type)
     ),
-  cover_letter: Yup.string().max(MAX_COVER_LETTER_LENGTH, `Max ${MAX_COVER_LETTER_LENGTH} characters`).notRequired(),
+  cover_letter: Yup.mixed<FileList>()
+    .notRequired()
+    .test("fileSize", "File must be less than 2 MB", (value) => !value || value[0]?.size <= MAX_FILE_SIZE)
+    .test("fileType", "Only PDF, DOC, DOCX files are allowed", (value) =>
+      !value || ALLOWED_FILE_TYPES.includes(value[0]?.type)
+    ),
 });
 
-function buildFormData(data: FormValues): FormData {
+function buildFormData(data: FormValues, source: string): FormData {
   const formData = new FormData();
-  formData.append("full_name", data.full_name);
-  formData.append("email", data.email);
+  formData.append("full_name", data.full_name.trim());
+  formData.append("email", data.email.trim());
   formData.append("phone", data.phone);
   formData.append("position", data.position);
+  formData.append("source", source);
   if (data.resume && data.resume.length > 0) formData.append("resume", data.resume[0]);
-  if (data.cover_letter) formData.append("cover_letter", data.cover_letter);
+  if (data.cover_letter && data.cover_letter.length > 0) formData.append("cover_letter", data.cover_letter[0]);
   return formData;
 }
 
@@ -60,14 +92,14 @@ function ApplyForm() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(validationSchema) as any,
+    mode: "onChange",
+    reValidateMode: "onBlur",
   });
 
-  const [serverMessage, setServerMessage] = useState<string | null>(null);
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [positionFromUrl, setPositionFromUrl] = useState<string | null>(null);
 
-  const coverLetterValue = watch("cover_letter") || "";
-  const coverLetterLength = coverLetterValue.length;
+  const phoneValue = watch("phone");
 
   // Pre-fill position from URL
   useEffect(() => {
@@ -79,27 +111,109 @@ function ApplyForm() {
     }
   }, [setValue]);
 
-  const onSubmit: SubmitHandler<FormValues> = async (data) => {
-    setServerMessage(null);
-    setServerError(null);
+  const onSubmit = useCallback(
+    async (data: FormValues) => {
+      try {
+        setLoading(true);
 
-    try {
-      const formData = buildFormData(data);
-      const response = await fetch("/api/apply", { method: "POST", body: formData });
-      const result = await response.json();
+        // Extract page name from URL for source field
+        const getSourceFromUrl = () => {
+          const path = window.location.pathname;
+          if (path === "/" || path === "") return "home";
+          return path.replace(/^\//, "").replace(/\//g, "-") || "home";
+        };
 
-      if (!response.ok || !result.success) {
-        setServerError(result.message || "Something went wrong.");
-        return;
+        const source = getSourceFromUrl();
+        const formData = buildFormData(data, source);
+
+        console.log("Sending payload:", {
+          full_name: data.full_name.trim(),
+          email: data.email.trim(),
+          phone: data.phone,
+          position: data.position,
+          source: source,
+          resume: data.resume?.[0]?.name,
+          cover_letter: data.cover_letter?.[0]?.name,
+        });
+        console.log("API URL:", API_CONFIG.CAREER_FORM.getUrl());
+
+        const apiUrl = API_CONFIG.CAREER_FORM.getUrl();
+        const response = await axios.post(apiUrl, formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Accept: "application/json",
+          },
+          timeout: 30000,
+        });
+
+        console.log("Response status:", response.status);
+        console.log("Response data:", response.data);
+
+        if (response.status === 200 || response.status === 201) {
+          toast.success(
+            "Thank you! Your application has been submitted successfully. We'll get back to you soon.",
+            {
+              position: "top-center",
+              autoClose: 5000,
+              theme: "colored",
+            }
+          );
+          reset();
+        }
+      } catch (error) {
+        let errorMessage =
+          "Unable to submit your application. Please try again later.";
+
+        if (axios.isAxiosError(error)) {
+          console.error("Axios Error Details:", {
+            message: error.message,
+            response: error.response,
+            request: error.request,
+            config: error.config,
+          });
+
+          if (error.response) {
+            // Server responded with error status
+            console.error("Response Status:", error.response.status);
+            console.error("Response Data:", error.response.data);
+            console.error("Response Headers:", error.response.headers);
+
+            const responseData = error.response.data as
+              | { message?: string; error?: string }
+              | string;
+
+            if (typeof responseData === "object" && responseData !== null) {
+              errorMessage =
+                responseData.message || responseData.error || errorMessage;
+            } else if (typeof responseData === "string" && responseData) {
+              errorMessage = responseData;
+            }
+          } else if (error.request) {
+            // Request made but no response received
+            console.error("No response received. Request:", error.request);
+            errorMessage =
+              "Unable to connect to the server. Please check your internet connection and try again.";
+          } else {
+            // Request setup error
+            console.error("Request setup error:", error.message);
+            errorMessage =
+              "An error occurred while submitting your application. Please try again.";
+          }
+        } else {
+          console.error("Non-axios error:", error);
+        }
+
+        toast.error(errorMessage, {
+          position: "top-center",
+          autoClose: 5000,
+          theme: "colored",
+        });
+      } finally {
+        setLoading(false);
       }
-
-      setServerMessage(result.message || "🎉 Application submitted!");
-      reset();
-    } catch (error) {
-      console.error(error);
-      setServerError("Network error. Please try again later.");
-    }
-  };
+    },
+    [reset]
+  );
 
   return (
     <div id="main-wrapper">
@@ -139,13 +253,40 @@ function ApplyForm() {
               {/* Phone */}
               <div className="col-md-6 mb-4">
                 <label className="form-label"><i className="fas fa-phone-alt" /> Phone</label>
-                <input
-                  type="tel"
-                  className={`form-control ${errors.phone ? "is-invalid" : ""}`}
-                  {...register("phone")}
-                  placeholder="Enter your phone number"
-                />
+                <div className={errors.phone ? "phone-input-error" : ""}>
+                  <PhoneInput
+                    international
+                    defaultCountry="IN"
+                    value={phoneValue}
+                    onChange={(value) => setValue("phone", value || "", { shouldValidate: true })}
+                    placeholder="Enter your phone number"
+                  />
+                </div>
                 {errors.phone && <div className="invalid-feedback">{errors.phone.message}</div>}
+                <style>{`
+                  .col-md-6 .PhoneInput {
+                    width: 100%;
+                  }
+                  .col-md-6 .PhoneInputInput {
+                    width: 100%;
+                    padding: 12px 15px;
+                    border: 1px solid #ced4da;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+                  }
+                  .phone-input-error .PhoneInputInput {
+                    border-color: #dc3545 !important;
+                  }
+                  .col-md-6 .PhoneInputInput:focus {
+                    outline: none;
+                    border-color: #80bdff;
+                    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+                  }
+                  .col-md-6 .PhoneInputCountry {
+                    margin-right: 8px;
+                  }
+                `}</style>
               </div>
 
               {/* Position */}
@@ -180,37 +321,51 @@ function ApplyForm() {
               </div>
 
               {/* Cover Letter */}
-              <div className="col-md-12 mb-2">
-                <label className="form-label"><i className="fas fa-comment-alt" /> Cover Letter</label>
-                <textarea
-                  className="form-control"
-                  rows={5}
-                  maxLength={MAX_COVER_LETTER_LENGTH}
-                  {...register("cover_letter")}
-                  placeholder="Briefly introduce yourself and why you're a good fit"
+              <div className="col-md-12 mb-4">
+                <label className="form-label"><i className="fas fa-file-upload" /> Upload Cover Letter (Optional)</label>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  className={`form-control ${errors.cover_letter ? "is-invalid" : ""}`}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setValue("cover_letter", e.target.files ?? undefined, { shouldValidate: true })
+                  }
                 />
-                <div className="d-flex justify-content-between">
-                  {errors.cover_letter && <div className="text-danger">{errors.cover_letter.message}</div>}
-                  <small className={`text-${MAX_COVER_LETTER_LENGTH - coverLetterLength < 50 ? "danger" : "muted"}`}>
-                    {coverLetterLength}/{MAX_COVER_LETTER_LENGTH} characters
-                  </small>
-                </div>
+                {errors.cover_letter && <div className="invalid-feedback">{errors.cover_letter.message}</div>}
+                <small className="text-muted">Allowed formats: PDF, DOC, DOCX | Max size: 2 MB</small>
               </div>
 
               {/* Submit */}
               <div className="col-md-12 text-center">
-                <button type="submit" className="btn btn-primary btn-lg" disabled={isSubmitting}>
-                  {isSubmitting ? "Submitting..." : "Submit Application"}
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-lg"
+                  disabled={loading || isSubmitting}
+                  style={{
+                    opacity: loading || isSubmitting ? 0.6 : 1,
+                    cursor: loading || isSubmitting ? "not-allowed" : "pointer",
+                    transition: "all 0.3s ease",
+                  }}
+                >
+                  {loading || isSubmitting ? "Submitting..." : "Submit Application"}
                 </button>
               </div>
             </div>
           </form>
-
-          {serverMessage && <div className="alert alert-success mt-4 text-center">{serverMessage}</div>}
-          {serverError && <div className="alert alert-danger mt-4 text-center">{serverError}</div>}
         </div>
 
-        <CallToAction />
+        <ToastContainer
+          position="top-center"
+          autoClose={5000}
+          hideProgressBar={false}
+          pauseOnHover
+          closeOnClick
+          rtl={false}
+          theme="colored"
+          style={{
+            marginTop: "80px", // Adjust this value based on your navbar height
+          }}
+        />
         <Cookies />
       </div>
     </div>

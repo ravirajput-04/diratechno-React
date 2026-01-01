@@ -1,4 +1,3 @@
-import CallToAction from "../components/CallToAction";
 import Cookies from "../components/Cookies";
 import Counter from "../components/Counter";
 import Testimonials from "../components/Testimonials";
@@ -265,7 +264,6 @@ function About() {
 
                 <Testimonials />
                 <Counter />
-                <CallToAction />
                 <Cookies />
             </div>
         </>
