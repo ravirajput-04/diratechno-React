@@ -5,6 +5,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
 import { API_CONFIG } from "../config/apiConfig";
 
 interface ContactFormValues {
@@ -44,6 +45,7 @@ const schema = yup
   .required();
 
 const ContactForm: React.FC = () => {
+  const { executeRecaptcha } = useGoogleReCaptcha();
   const [loading, setLoading] = useState(false);
 
   const {
@@ -68,6 +70,56 @@ const ContactForm: React.FC = () => {
       try {
         setLoading(true);
 
+        // Execute reCAPTCHA v3 - Required for production
+        let recaptchaToken: string | undefined;
+        
+        if (!executeRecaptcha) {
+          const errorMsg = import.meta.env.PROD
+            ? "Security verification is not available. Please contact support."
+            : "reCAPTCHA is not configured. Please configure VITE_RECAPTCHA_SITE_KEY.";
+          
+          if (import.meta.env.PROD) {
+            toast.error(errorMsg, {
+              position: "top-center",
+              autoClose: 5000,
+              theme: "colored",
+            });
+          } else {
+            console.warn(errorMsg);
+          }
+          setLoading(false);
+          return;
+        }
+
+        try {
+          // Small delay to ensure reCAPTCHA script is fully loaded
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          recaptchaToken = await executeRecaptcha("submit_contact_form");
+          
+          if (!recaptchaToken || recaptchaToken.trim() === "") {
+            throw new Error("reCAPTCHA returned an empty token");
+          }
+          
+          if (import.meta.env.DEV) {
+            console.log("reCAPTCHA token obtained successfully");
+          }
+        } catch (recaptchaError: any) {
+          const errorMsg = "Security verification failed. Please refresh the page and try again.";
+          
+          if (import.meta.env.DEV) {
+            console.error("reCAPTCHA error:", recaptchaError?.message || recaptchaError);
+          }
+          
+          toast.error(errorMsg, {
+            position: "top-center",
+            autoClose: 5000,
+            theme: "colored",
+          });
+          setLoading(false);
+          return;
+        }
+
         // Extract page name from URL for source field
         const getSourceFromUrl = () => {
           const path = window.location.pathname;
@@ -81,10 +133,16 @@ const ContactForm: React.FC = () => {
           department: data.department.trim(),
           description: data.description.trim(),
           source: getSourceFromUrl(),
+          recaptchaToken: recaptchaToken,
         };
 
-        console.log("Sending payload:", payload);
-        console.log("API URL:", API_CONFIG.CONTACT_FORM.getUrl());
+        if (import.meta.env.DEV) {
+          console.log("Sending payload:", {
+            ...payload,
+            recaptchaToken: recaptchaToken ? "present" : "missing",
+          });
+          console.log("API URL:", API_CONFIG.CONTACT_FORM.getUrl());
+        }
 
         const apiUrl = API_CONFIG.CONTACT_FORM.getUrl();
         const response = await axios.post(apiUrl, payload, {
@@ -95,8 +153,9 @@ const ContactForm: React.FC = () => {
           timeout: 30000,
         });
 
-        console.log("Response status:", response.status);
-        console.log("Response data:", response.data);
+        if (import.meta.env.DEV) {
+          console.log("Response status:", response.status);
+        }
 
         if (response.status === 200 || response.status === 201) {
           toast.success(
@@ -161,7 +220,7 @@ const ContactForm: React.FC = () => {
         setLoading(false);
       }
     },
-    [reset]
+    [reset, executeRecaptcha]
   );
 
   return (

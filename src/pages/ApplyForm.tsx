@@ -79,7 +79,7 @@ function buildFormData(data: FormValues, source: string, recaptchaToken?: string
   formData.append("position", data.position);
   formData.append("source", source);
   if (recaptchaToken) {
-    formData.append("recaptcha_token", recaptchaToken);
+    formData.append("recaptchaToken", recaptchaToken);
   }
   if (data.resume && data.resume.length > 0) formData.append("resume", data.resume[0]);
   if (data.cover_letter && data.cover_letter.length > 0) formData.append("cover_letter", data.cover_letter[0]);
@@ -123,58 +123,54 @@ function ApplyForm() {
       try {
         setLoading(true);
 
-        // Execute reCAPTCHA v3
+        // Execute reCAPTCHA v3 - Required for production
         let recaptchaToken: string | undefined;
-        if (executeRecaptcha) {
-          try {
-            // Add a small delay to ensure reCAPTCHA script is fully loaded
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            recaptchaToken = await executeRecaptcha("submit_application");
-            
-            if (!recaptchaToken || recaptchaToken.trim() === "") {
-              throw new Error("reCAPTCHA returned an empty token");
-            }
-            
-            console.log("reCAPTCHA token obtained successfully");
-          } catch (recaptchaError: any) {
-            console.error("reCAPTCHA error details:", {
-              error: recaptchaError,
-              message: recaptchaError?.message,
-              stack: recaptchaError?.stack,
-            });
-            
-            // In production, we should block submission if reCAPTCHA fails
-            if (import.meta.env.PROD) {
-              toast.error("Security verification failed. Please refresh the page and try again.", {
-                position: "top-center",
-                autoClose: 5000,
-                theme: "colored",
-              });
-              setLoading(false);
-              return;
-            } else {
-              // In development, allow submission but warn
-              console.warn("reCAPTCHA failed in development mode. Continuing without token.");
-              console.warn("To fix this, set VITE_RECAPTCHA_SITE_KEY in your .env file with a valid reCAPTCHA v3 site key.");
-            }
-          }
-        } else {
-          // reCAPTCHA not configured
+        
+        if (!executeRecaptcha) {
+          const errorMsg = import.meta.env.PROD
+            ? "Security verification is not available. Please contact support."
+            : "reCAPTCHA is not configured. Please configure VITE_RECAPTCHA_SITE_KEY.";
+          
           if (import.meta.env.PROD) {
-            console.error("reCAPTCHA is not configured in production!");
-            toast.error("Security verification is not available. Please contact support.", {
+            toast.error(errorMsg, {
               position: "top-center",
               autoClose: 5000,
               theme: "colored",
             });
-            setLoading(false);
-            return;
           } else {
-            // In development, allow submission without token
-            console.warn("reCAPTCHA not configured. Submitting without token (development mode).");
-            console.warn("To enable reCAPTCHA, set VITE_RECAPTCHA_SITE_KEY in your .env file.");
+            console.warn(errorMsg);
           }
+          setLoading(false);
+          return;
+        }
+
+        try {
+          // Small delay to ensure reCAPTCHA script is fully loaded
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          recaptchaToken = await executeRecaptcha("submit_application");
+          
+          if (!recaptchaToken || recaptchaToken.trim() === "") {
+            throw new Error("reCAPTCHA returned an empty token");
+          }
+          
+          if (import.meta.env.DEV) {
+            console.log("reCAPTCHA token obtained successfully");
+          }
+        } catch (recaptchaError: any) {
+          const errorMsg = "Security verification failed. Please refresh the page and try again.";
+          
+          if (import.meta.env.DEV) {
+            console.error("reCAPTCHA error:", recaptchaError?.message || recaptchaError);
+          }
+          
+          toast.error(errorMsg, {
+            position: "top-center",
+            autoClose: 5000,
+            theme: "colored",
+          });
+          setLoading(false);
+          return;
         }
 
         // Extract page name from URL for source field
@@ -187,17 +183,19 @@ function ApplyForm() {
         const source = getSourceFromUrl();
         const formData = buildFormData(data, source, recaptchaToken);
 
-        console.log("Sending payload:", {
-          full_name: data.full_name.trim(),
-          email: data.email.trim(),
-          phone: data.phone,
-          position: data.position,
-          source: source,
-          resume: data.resume?.[0]?.name,
-          cover_letter: data.cover_letter?.[0]?.name,
-          recaptcha_token: recaptchaToken ? "present" : "missing",
-        });
-        console.log("API URL:", API_CONFIG.CAREER_FORM.getUrl());
+        if (import.meta.env.DEV) {
+          console.log("Sending payload:", {
+            full_name: data.full_name.trim(),
+            email: data.email.trim(),
+            phone: data.phone,
+            position: data.position,
+            source: source,
+            resume: data.resume?.[0]?.name,
+            cover_letter: data.cover_letter?.[0]?.name,
+            recaptchaToken: recaptchaToken ? "present" : "missing",
+          });
+          console.log("API URL:", API_CONFIG.CAREER_FORM.getUrl());
+        }
 
         const apiUrl = API_CONFIG.CAREER_FORM.getUrl();
         const response = await axios.post(apiUrl, formData, {
@@ -208,8 +206,9 @@ function ApplyForm() {
           timeout: 30000,
         });
 
-        console.log("Response status:", response.status);
-        console.log("Response data:", response.data);
+        if (import.meta.env.DEV) {
+          console.log("Response status:", response.status);
+        }
 
         if (response.status === 200 || response.status === 201) {
           toast.success(
