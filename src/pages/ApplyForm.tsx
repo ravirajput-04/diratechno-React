@@ -8,6 +8,7 @@ import { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
 import { API_CONFIG } from "../config/apiConfig";
 import Cookies from "../components/Cookies";
 
@@ -70,13 +71,16 @@ const validationSchema = Yup.object().shape({
     ),
 });
 
-function buildFormData(data: FormValues, source: string): FormData {
+function buildFormData(data: FormValues, source: string, recaptchaToken?: string): FormData {
   const formData = new FormData();
   formData.append("full_name", data.full_name.trim());
   formData.append("email", data.email.trim());
   formData.append("phone", data.phone);
   formData.append("position", data.position);
   formData.append("source", source);
+  if (recaptchaToken) {
+    formData.append("recaptcha_token", recaptchaToken);
+  }
   if (data.resume && data.resume.length > 0) formData.append("resume", data.resume[0]);
   if (data.cover_letter && data.cover_letter.length > 0) formData.append("cover_letter", data.cover_letter[0]);
   return formData;
@@ -95,6 +99,9 @@ function ApplyForm() {
     mode: "onChange",
     reValidateMode: "onBlur",
   });
+
+  // Get reCAPTCHA hook - executeRecaptcha will be undefined if provider is not rendered
+  const { executeRecaptcha } = useGoogleReCaptcha();
 
   const [loading, setLoading] = useState(false);
   const [positionFromUrl, setPositionFromUrl] = useState<string | null>(null);
@@ -116,6 +123,60 @@ function ApplyForm() {
       try {
         setLoading(true);
 
+        // Execute reCAPTCHA v3
+        let recaptchaToken: string | undefined;
+        if (executeRecaptcha) {
+          try {
+            // Add a small delay to ensure reCAPTCHA script is fully loaded
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            recaptchaToken = await executeRecaptcha("submit_application");
+            
+            if (!recaptchaToken || recaptchaToken.trim() === "") {
+              throw new Error("reCAPTCHA returned an empty token");
+            }
+            
+            console.log("reCAPTCHA token obtained successfully");
+          } catch (recaptchaError: any) {
+            console.error("reCAPTCHA error details:", {
+              error: recaptchaError,
+              message: recaptchaError?.message,
+              stack: recaptchaError?.stack,
+            });
+            
+            // In production, we should block submission if reCAPTCHA fails
+            if (import.meta.env.PROD) {
+              toast.error("Security verification failed. Please refresh the page and try again.", {
+                position: "top-center",
+                autoClose: 5000,
+                theme: "colored",
+              });
+              setLoading(false);
+              return;
+            } else {
+              // In development, allow submission but warn
+              console.warn("reCAPTCHA failed in development mode. Continuing without token.");
+              console.warn("To fix this, set VITE_RECAPTCHA_SITE_KEY in your .env file with a valid reCAPTCHA v3 site key.");
+            }
+          }
+        } else {
+          // reCAPTCHA not configured
+          if (import.meta.env.PROD) {
+            console.error("reCAPTCHA is not configured in production!");
+            toast.error("Security verification is not available. Please contact support.", {
+              position: "top-center",
+              autoClose: 5000,
+              theme: "colored",
+            });
+            setLoading(false);
+            return;
+          } else {
+            // In development, allow submission without token
+            console.warn("reCAPTCHA not configured. Submitting without token (development mode).");
+            console.warn("To enable reCAPTCHA, set VITE_RECAPTCHA_SITE_KEY in your .env file.");
+          }
+        }
+
         // Extract page name from URL for source field
         const getSourceFromUrl = () => {
           const path = window.location.pathname;
@@ -124,7 +185,7 @@ function ApplyForm() {
         };
 
         const source = getSourceFromUrl();
-        const formData = buildFormData(data, source);
+        const formData = buildFormData(data, source, recaptchaToken);
 
         console.log("Sending payload:", {
           full_name: data.full_name.trim(),
@@ -134,6 +195,7 @@ function ApplyForm() {
           source: source,
           resume: data.resume?.[0]?.name,
           cover_letter: data.cover_letter?.[0]?.name,
+          recaptcha_token: recaptchaToken ? "present" : "missing",
         });
         console.log("API URL:", API_CONFIG.CAREER_FORM.getUrl());
 
@@ -212,7 +274,7 @@ function ApplyForm() {
         setLoading(false);
       }
     },
-    [reset]
+    [reset, executeRecaptcha]
   );
 
   return (

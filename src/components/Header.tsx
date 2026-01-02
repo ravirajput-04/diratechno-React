@@ -38,7 +38,7 @@ function Header() {
                   {/* brand logo */}
                   <div className="header__logo">
                     <Link to="/">
-                      <img src="/assets/images/logo/dt-logo.png" aria-label="dira Logo" width={160} height='auto' className="img-fluid" alt="logo" />
+                      <img src="/assets/images/logo/dt-logo.png" aria-label="dira Logo" style={{ width: '160px', height: 'auto' }} className="img-fluid" alt="logo" />
                     </Link>
                   </div>
                   <div className="header-right">

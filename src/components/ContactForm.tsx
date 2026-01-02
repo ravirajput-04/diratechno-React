@@ -55,6 +55,12 @@ const ContactForm: React.FC = () => {
     resolver: yupResolver(schema),
     mode: "onChange",
     reValidateMode: "onBlur",
+    defaultValues: {
+      name: "",
+      email: "",
+      department: "",
+      description: "",
+    },
   });
 
   const onSubmit = useCallback(
@@ -207,6 +213,7 @@ const ContactForm: React.FC = () => {
                     className={`form-control ${
                       errors.department ? "border-danger" : ""
                     }`}
+                    defaultValue=""
                   >
                     <option value="" disabled>
                       Select Department

@@ -27,6 +27,7 @@
     "react-burger-menu": "^3.1.0",
     "react-cookie": "^8.0.1",
     "react-dom": "^19.1.1",
+    "react-google-recaptcha-v3": "^1.11.0",
     "react-hook-form": "^7.62.0",
     "react-phone-number-input": "^3.4.14",
     "react-router-dom": "^7.9.1",

@@ -20,41 +20,57 @@ import DevopsAndCloudPartnershipServices from './pages/DevopsAndCloudPartnership
 import CustomSolutionsAndWhiteLabelSaaS from './pages/CustomSolutionsAndWhiteLabelSaaS';
 import { CookiesProvider } from 'react-cookie';
 import NotFound from './components/NotFound';
+import { GoogleReCaptchaProvider } from 'react-google-recaptcha-v3';
+import { RECAPTCHA_SITE_KEY } from './config/apiConfig';
 
 
 function App() {
+  const appContent = (
+    <BrowserRouter>
+      <ScrollToTop />
+      <Routes>
+        <Route path="/" element={<Root />} >
+          {/*Main Pages*/}
+          <Route index element={<Home />} />
+          <Route path="about" element={<About />} />
+          <Route path="services" element={<Services />} />
+          <Route path="careers" element={<Careers />} />
+          <Route path="contact-us" element={<Contact />} />
+          <Route path="privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="apply-form" element={<ApplyForm />} />
+          {/*Service Pages*/}
+          <Route path="devops-and-cloud-services" element={<DevopsAndCloudServices />} />
+          <Route path="cloud-consulting-and-managed-services" element={<CloudConsultingAndManagedServices />} />
+          <Route path="web-application-development" element={<WebApplicationDevelopmentServices />} />
+          <Route path="mobile-application-development" element={<MobileApplicationDevelopmentServices />} />
+          <Route path="agency-partnership" element={<AgencyPartnershipServices />} />
+          <Route path="white-label-development-services" element={<WhiteLabelDevelopmentServices />} />
+          <Route path="dedicated-developers" element={<DedicatedDeveloperServices />} />
+          <Route path="devops-and-cloud-partnership" element={<DevopsAndCloudPartnershipServices />} />
+          <Route path="maintenance-and-support-services" element={<MaintenanceAndSupportServices />} />
+          <Route path="custom-solutions-and-white-label-saas" element={<CustomSolutionsAndWhiteLabelSaaS />} />
+
+          {/*Catch all - replace with 404 component if you have one*/}
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
 
   return (
     <CookiesProvider>
-      <BrowserRouter>
-        <ScrollToTop />
-        <Routes>
-          <Route path="/" element={<Root />} >
-            {/*Main Pages*/}
-            <Route index element={<Home />} />
-            <Route path="about" element={<About />} />
-            <Route path="services" element={<Services />} />
-            <Route path="careers" element={<Careers />} />
-            <Route path="contact-us" element={<Contact />} />
-            <Route path="privacy-policy" element={<PrivacyPolicy />} />
-            <Route path="apply-form" element={<ApplyForm />} />
-            {/*Service Pages*/}
-            <Route path="devops-and-cloud-services" element={<DevopsAndCloudServices />} />
-            <Route path="cloud-consulting-and-managed-services" element={<CloudConsultingAndManagedServices />} />
-            <Route path="web-application-development" element={<WebApplicationDevelopmentServices />} />
-            <Route path="mobile-application-development" element={<MobileApplicationDevelopmentServices />} />
-            <Route path="agency-partnership" element={<AgencyPartnershipServices />} />
-            <Route path="white-label-development-services" element={<WhiteLabelDevelopmentServices />} />
-            <Route path="dedicated-developers" element={<DedicatedDeveloperServices />} />
-            <Route path="devops-and-cloud-partnership" element={<DevopsAndCloudPartnershipServices />} />
-            <Route path="maintenance-and-support-services" element={<MaintenanceAndSupportServices />} />
-            <Route path="custom-solutions-and-white-label-saas" element={<CustomSolutionsAndWhiteLabelSaaS />} />
-
-            {/*Catch all - replace with 404 component if you have one*/}
-            <Route path="*" element={<NotFound />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      {RECAPTCHA_SITE_KEY ? (
+        <GoogleReCaptchaProvider
+          reCaptchaKey={RECAPTCHA_SITE_KEY}
+          language="en"
+          useRecaptchaNet={true}
+          useEnterprise={false}
+        >
+          {appContent}
+        </GoogleReCaptchaProvider>
+      ) : (
+        appContent
+      )}
     </CookiesProvider>
   )
 }
